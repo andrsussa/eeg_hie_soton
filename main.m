@@ -1,8 +1,11 @@
 clear
-EEG = pop_biosig('/home/andres/repos/eeg_hei_soton/2.1.1min');
-EEG.setname = '1MIN data';
-EEG = pop_chanedit(EEG, 'lookup','/home/andres/MATLAB/eeglab13_5_4b/plugins/dipfit2.3/standard_BESA/standard-10-5-cap385.elp');
-% EEG=pop_chanedit(EEG, 'lookup','H:\\thesis\\eeglab13_5_4b\\plugins\\dipfit2.3\\standard_BESA\\standard-10-5-cap385.elp');
+if ispc
+    EEG = pop_biosig('H:\eeg_hei_soton\2.1.1min');
+    EEG=pop_chanedit(EEG, 'lookup','H:\\thesis\\eeglab13_5_4b\\plugins\\dipfit2.3\\standard_BESA\\standard-10-5-cap385.elp');
+else
+    EEG = pop_biosig('/home/andres/repos/eeg_hei_soton/2.1.1min');
+    EEG = pop_chanedit(EEG, 'lookup','/home/andres/MATLAB/eeglab13_5_4b/plugins/dipfit2.3/standard_BESA/standard-10-5-cap385.elp');
+end
 EEG = pop_select( EEG,'nochannel',{'FPZ' 'AUX1' 'AUX2' 'AUX3' 'AUX4' 'AUX5' 'AUX6' 'AUX7' 'AUX8' 'PG1' 'PG2' 'A1' 'A2'});
 notchlo = 49;
 notchhi = 51;
@@ -21,12 +24,12 @@ EEG = pop_rejepoch( EEG, Indexes, 0);
 onemat = 1;
 if (onemat)
     name = 'epochs.mat';
-    var = EEG.data;
+    var = double(EEG.data);
     save(name,'var');
 else    
     for i = 1:EEG.trials
         name = ['epochs/e', num2str(i),'.mat'];
-        var = EEG.data(:,:,i);
+        var = double(EEG.data(:,:,i));
         save(name,'var');
     end
 end
