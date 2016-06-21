@@ -45,10 +45,14 @@ EEG = pop_rejepoch( EEG, rejectIndexes, 0);
 
 length = EEG.pnts*1000/EEG.srate; % Lenght in ms
 ratems = 1000/EEG.srate; % Rate in ms
+baseline = 0;
+time = (0:EEG.pnts - 1) / EEG.srate * 1000 - baseline;
 overlap = 0;
+
 window = struct('length', length, 'overlap', overlap,...
     'alignment','epoch', 'baseline', 0, 'fs', EEG.srate);
 rawconfig = struct('window', window, 'fs', EEG.srate, 'statistics', 0,...
-    'nSurrogates', 100, 'time', 0:ratems:length, 'freqRange', []);
+    'nSurrogates', 100, 'time', time, 'freqRange', []);
 rawconfig.measures = {'COH', 'iCOH'};
-indexes = H_compute_CM_commandline(EEG.data(:,:,1), rawconfig);
+
+sIndexes = H_compute_CM_commandline(EEG.data(:,:,1), rawconfig);
