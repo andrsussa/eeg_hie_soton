@@ -1,8 +1,8 @@
 clear
-load 'eeg_1min_smat.mat'
-M = cell2mat(indexes.COH.data);
+load('/home/andres/repos/eeg_hei_soton/HERMES output/eeg_hei.mat')
+M = cell2mat(indexes.PLV.data);
 n = size(M,1);
-L = num2cell(1:19);
+L = num2cell(1:n);
 imagesc(M(:,:,1));
 set(gca, 'XTick', 1:n);
 set(gca, 'YTick', 1:n);
