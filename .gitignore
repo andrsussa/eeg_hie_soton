@@ -2,3 +2,5 @@
 *.log
 *.asv
 *~
+nbt_*
+NBT data/
