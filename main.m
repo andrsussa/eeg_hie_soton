@@ -29,30 +29,40 @@ EEG = pop_rmbase(EEG, [-1000     0]);   % Check what Baseline removing is
 [EEG, rejectIndexes] = pop_eegthresh(EEG,1,1:19,-100,100,-1,1.998,0,0);
 EEG = pop_rejepoch( EEG, rejectIndexes, 0);
 
-% onemat = 1;
+% onemat = 0;
 % if (onemat)
 %     name = 'epochs.mat';
-%     var = double(EEG.data);
-%     save(name,'odata');
+%     oData = double(EEG.data);
+%     save(name,'oData');
 % else    
 %     for i = 1:EEG.trials
-%         name = ['epochs/e', num2str(i),'.mat'];
-%         var = double(EEG.data(:,:,i));
-%         save(name,'odata');
+%         name = ['EEGLAB output/epochs/e', num2str(i),'.mat'];
+%         oData = double(EEG.data(:,:,i));
+%         save(name,'oData');
 %     end
 % end
 % eeglab redraw
 
 length = EEG.pnts*1000/EEG.srate; % Lenght in ms
-ratems = 1000/EEG.srate; % Rate in ms
 baseline = 0;
 time = (0:EEG.pnts - 1) / EEG.srate * 1000 - baseline;
 overlap = 0;
 
-window = struct('length', length, 'overlap', overlap,...
-    'alignment','epoch', 'baseline', 0, 'fs', EEG.srate);
-rawconfig = struct('window', window, 'fs', EEG.srate, 'statistics', 0,...
-    'nSurrogates', 100, 'time', time, 'freqRange', []);
-rawconfig.measures = {'COH', 'iCOH'};
+CMwindow = struct('length', length, 'overlap', overlap,...
+    'alignment', 'epoch', 'fs', EEG.srate', 'baseline', 0);
+rawCMconfig = struct('measures', [], 'time', time,  'freqRange', [],...
+    'window', CMwindow, 'statistics', 0, 'nSurrogates', 100,...
+    'fs', EEG.srate);
+rawCMconfig.measures = {'COH', 'iCOH'};
 
-sIndexes = H_compute_CM_commandline(EEG.data(:,:,1), rawconfig);
+cmIndexes = H_compute_CM_commandline(EEG.data, rawCMconfig);
+
+PSwindow = struct('length', length, 'overlap', overlap,...
+    'alignment', 'epoch', 'fs', EEG.srate', 'baseline', 0);
+
+rawPSconfig = struct('measures', [], 'bandcenter', [10 20],...
+    'bandwidth', 4, 'fs', EEG.srate, 'method', 'ema', 'time', time,...
+    'window', PSwindow, 'statistics', 0, 'nSurrogates', 100);
+rawPSconfig.measures = {'PLV', 'PLI', 'RHO'};
+
+psIndexes = H_compute_PS_commandline(EEG.data, rawPSconfig);
