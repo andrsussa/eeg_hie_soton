@@ -43,11 +43,22 @@ EEG = pop_rejepoch( EEG, rejectIndexes, 0);
 % end
 % eeglab redraw
 
+measuresCell = {'COH'; 'iCOH'; 'PLV'; 'PLI'; 'RHO'};
+measuresDataCell = {[]; []; []; []; []};
+measures = cell2struct(measuresDataCell, measuresCell, 1);
+
+fBandsCell = {'delta', 'theta', 'alpha', 'beta', 'gamma'};
+for i = 1:5
+    fBands.(cell2mat(fBandsCell(i))) = measures;
+end
+
+%% Window Properties
 length = EEG.pnts*1000/EEG.srate; % Lenght in ms
 baseline = 0;
 time = (0:EEG.pnts - 1) / EEG.srate * 1000 - baseline;
 overlap = 0;
 
+%% Classical Measures
 CMwindow = struct('length', length, 'overlap', overlap,...
     'alignment', 'epoch', 'fs', EEG.srate', 'baseline', 0);
 rawCMconfig = struct('measures', [], 'time', time,  'freqRange', [],...
@@ -57,12 +68,25 @@ rawCMconfig.measures = {'COH', 'iCOH'};
 
 cmIndexes = H_compute_CM_commandline(EEG.data, rawCMconfig);
 
+%% Phase Synchronization
 PSwindow = struct('length', length, 'overlap', overlap,...
     'alignment', 'epoch', 'fs', EEG.srate', 'baseline', 0);
 
-rawPSconfig = struct('measures', [], 'bandcenter', [10 20],...
+rawPSconfig = struct('measures', [], 'bandcenter', [],...
     'bandwidth', 4, 'fs', EEG.srate, 'method', 'ema', 'time', time,...
     'window', PSwindow, 'statistics', 0, 'nSurrogates', 100);
 rawPSconfig.measures = {'PLV', 'PLI', 'RHO'};
 
-psIndexes = H_compute_PS_commandline(EEG.data, rawPSconfig);
+bandcenterM = [2.5, 6, 10, 21, 38];
+bandwidthM = [3, 4, 4, 18, 16];
+
+for i = 1:5
+    rawPSconfig.bandcenter = bandcenterM(i);
+    rawPSconfig.bandwidth = bandwidthM(i);
+    psIndexes = H_compute_PS_commandline(EEG.data, rawPSconfig);
+    bandsProcessed = cell2mat(psIndexes.PLV.dimensions(6));
+    disp(['Saving for ', mat2str(bandsProcessed)]);
+    fBands.(cell2mat(fBandsCell(i))).PLI = psIndexes.PLI.data;
+    fBands.(cell2mat(fBandsCell(i))).PLV = psIndexes.PLV.data;
+    fBands.(cell2mat(fBandsCell(i))).RHO = psIndexes.RHO.data;
+end
