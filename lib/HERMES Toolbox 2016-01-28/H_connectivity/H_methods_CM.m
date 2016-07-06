@@ -20,7 +20,7 @@ function output = H_methods_CM ( data, config, waitbar )
 % 
 %
 % ** Please cite: ---------------------------------------------------------
-% Niso G, Bruï¿½a R, Pereda E, Gutiï¿½rrez R, Bajo R., Maestï¿½ F, & del-Pozo F. 
+% Niso G, Bruña R, Pereda E, Gutiérrez R, Bajo R., Maestú F, & del-Pozo F. 
 % HERMES: towards an integrated toolbox to characterize functional and 
 % effective brain connectivity. Neuroinformatics 2013, 11(4), 405-434. 
 % DOI: 10.1007/s12021-013-9186-1. 

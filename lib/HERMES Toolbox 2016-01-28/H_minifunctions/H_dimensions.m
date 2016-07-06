@@ -19,7 +19,7 @@ function dimensions = H_dimensions ( index, config, project )
 % 
 %
 % ** Please cite: 
-% Niso G, Bruna R, Pereda E, Gutiï¿½rrez R, Bajo R., Maestï¿½ F, & del-Pozo F. 
+% Niso G, Bruna R, Pereda E, Gutiérrez R, Bajo R., Maestú F, & del-Pozo F. 
 % HERMES: towards an integrated toolbox to characterize functional and 
 % effective brain connectivity. Neuroinformatics 2013, 11(4), 405-434. 
 % DOI: 10.1007/s12021-013-9186-1. 
