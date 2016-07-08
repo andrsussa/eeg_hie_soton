@@ -1,11 +1,11 @@
 clear all
 
 if ispc
-    EEG = pop_biosig('H:\eeg_hei_soton\2.1.1min');
+    EEG = pop_biosig('H:\repos\eeg_hie_soton\2.1.1min');
     EEG=pop_chanedit(EEG, 'lookup',['H:\\thesis\\eeglab13_5_4b\\plugins'...
         '\\dipfit2.3\\standard_BESA\\standard-10-5-cap385.elp']);
 else
-    EEG = pop_biosig('/home/andres/repos/eeg_hei_soton/2.1.1min');
+    EEG = pop_biosig('/home/andres/repos/eeg_hie_soton/2.1.1min');
     EEG = pop_chanedit(EEG, 'lookup',['/home/andres/MATLAB/'...
         'eeglab13_5_4b/plugins/dipfit2.3/standard_BESA/'...
         'standard-10-5-cap385.elp']);
@@ -31,6 +31,7 @@ chanNum = EEG.nbchan;
 [EEG, rejectIndexes] = pop_eegthresh(...
     EEG, 1, 1:chanNum, -100, 100, -1, 1.998, 0, 0);
 EEG = pop_rejepoch( EEG, rejectIndexes, 0);
+EEG = pop_runica(EEG, 'extended',1);
 
 % onemat = 0;
 % if (onemat)
@@ -171,6 +172,7 @@ clear psIndexes PSwindow rawPSconfig bandcenterM bandwidthM...
 
 features = zeros(6,150);
 
+disp('Running BC measures processing...');
 h = 1;
 for i = 1:bandsNum
     for j = 1:measuresNum
