@@ -1,4 +1,4 @@
-function [ features ] = eeg_hie_feaX( data_path )
+function [ features, fFeatures ] = eeg_hie_feaX( data_path )
 %EEG_HIE_FEAX Extract features from EEG data.
 
 EEG = pop_biosig(data_path);
@@ -13,7 +13,7 @@ else
         'standard-10-5-cap385.elp']);
 end
 
-%% Filtering and Epoching
+%% Filtering
 EEG = pop_select(EEG, 'nochannel', {'FPZ' 'AUX1' 'AUX2' 'AUX3' 'AUX4',...
     'AUX5' 'AUX6' 'AUX7' 'AUX8' 'PG1' 'PG2' 'A1' 'A2'});
 notchlo = 49;
@@ -21,62 +21,97 @@ notchhi = 51;
 bandlo = 0.5;
 bandhi = 45;
 epochlen = 5;
-EEG = pop_eegfiltnew(EEG, notchlo, notchhi, 1690, 1, [], 0);
-EEG = pop_eegfiltnew(EEG, bandlo, bandhi, 3380, 0, [], 0);
-EEG.data(1, 1:EEG.srate*epochlen:EEG.pnts) = 1;  % Set events
+EEG = pop_eegfiltnew(EEG, notchlo, notchhi, [], 1, [], 0);
+EEG = pop_eegfiltnew(EEG, bandlo, bandhi, [], 0, [], 0);
+
+%% Epoching I
+EEG.data(1,1:EEG.srate*epochlen:EEG.pnts) = 1;  % Set events
+lim = [-1 2];
 EEG = pop_chanevent(EEG, 1, 'edge', 'leading', 'edgelen', 0,...
     'duration', 'on');
-EEG = pop_epoch(EEG, { }, [-1 2], 'newname', '1MIN data epochs',...
+EEG = pop_epoch(EEG, { }, lim, 'newname', '1MIN data epochs',...
     'epochinfo', 'yes');
 EEG = pop_rmbase(EEG, [-1000 0]);   % Check what Baseline removing is 
-                                        % for, and proper Value!!!!
+                                    % for, and proper Value!!!!
+
+%% Thresholding
 chanNum = EEG.nbchan;
-[EEG, rejectIndexes] = pop_eegthresh(...
-    EEG, 1, 1:chanNum, -100, 100, -1, 1.998, 0, 0);
-EEG = pop_rejepoch( EEG, rejectIndexes, 0);
-EEG = pop_runica(EEG, 'extended', 1);
+pnts = EEG.pnts;
+thuV = 100;
+EEG = pop_eegthresh(EEG, 1, 1:chanNum, -1*thuV, thuV, -1, 1.998, 0, 1);
+
+%% ICA
+EEGdata = reshape(EEG.data(1:chanNum,:,:), chanNum, EEG.pnts*EEG.trials);
+EEGdata = double(EEGdata);
+EEGica = fastica(EEGdata, 'stabilization', 'on');
+
+%% Epoching II
+srate = EEG.srate;
+valuelim = [-Inf Inf];
+tmpevent = EEG.event;
+alllatencies = [ tmpevent(:).latency ];
+
+EEGdata = epoch(EEGica, alllatencies, [lim(1) lim(2)]*srate,...
+    'valuelim', valuelim, 'allevents', alllatencies);
+
 
 %% Preparing structures
 measuresCell = {'COH', 'iCOH', 'PLV', 'PLI', 'RHO'};
 measuresDataCell = {[]; []; []; []; []};
 measures = cell2struct(measuresDataCell, measuresCell, 1);
+measuresNum = size(measuresCell,2);
 
 bcMeasuresCell = {'Data', 'Modul', 'Trans', 'CharPath', 'Effi',...
     'NetRad', 'NetDia'};
 bcMeasuresDataCell = {[]; []; []; []; []; []; []};
 bcMeasures = cell2struct(bcMeasuresDataCell, bcMeasuresCell, 1);
+stabcMeasures = cell2struct(bcMeasuresDataCell(2:end), bcMeasuresCell(2:end), 1);
 bcMeasuresNum = size(bcMeasuresCell,2) - 1;
+
+staMeasuresCell = {'Mean', 'Median', 'StD', 'IQR',...
+    'Skew', 'Kurt'};
+staMeasuresDataCell = {[]; []; []; []; []; []};
+staMeasures = cell2struct(staMeasuresDataCell, staMeasuresCell, 1);
+staMeasuresNum = size(staMeasuresCell,2);
 
 fBandsCell = {'delta', 'theta', 'alpha', 'beta', 'gamma'};
 bandsNum = size(fBandsCell,2);
-measuresNum = size(measuresCell,2);
 for i = 1:bandsNum
     fBands.(cell2mat(fBandsCell(i))) = measures;
+    fFeatures.(cell2mat(fBandsCell(i))) = measures;
     for j = 1:measuresNum
         fBands.(cell2mat(fBandsCell(i))).(cell2mat(measuresCell(j))) = ...
             bcMeasures;
-    end        
+        fFeatures.(cell2mat(fBandsCell(i))).(cell2mat(measuresCell(j)))...
+            = stabcMeasures;
+        for k = 2:bcMeasuresNum+1
+            fFeatures.(cell2mat(fBandsCell(i)))...
+                .(cell2mat(measuresCell(j)))...
+                .(cell2mat(bcMeasuresCell(k))) = staMeasures;
+        end
+    end
+        
 end
 
 clear measures measuresDataCell bcMeasuresDataCell bcMeasures
 
 %% Window Properties
-% length = EEG.pnts*1000/EEG.srate; % Lenght in ms
-length = 1000;
+% winLength = EEG.pnts*1000/EEG.srate; % Lenght in ms
+winLength = 1000;
 baseline = 0;
-time = (0:EEG.pnts - 1) / EEG.srate * 1000 - baseline;
+time = (0:pnts - 1) / srate * 1000 - baseline;
 % overlap = 0;
 overlap = 100;
 
 %% Classical Measures
-CMwindow = struct('length', length, 'overlap', overlap,...
-    'alignment', 'epoch', 'fs', EEG.srate', 'baseline', 0);
+CMwindow = struct('length', winLength, 'overlap', overlap,...
+    'alignment', 'epoch', 'fs', srate', 'baseline', 0);
 rawCMconfig = struct('measures', [], 'time', time,  'freqRange', [],...
     'window', CMwindow, 'statistics', 0, 'nSurrogates', 100,...
-    'fs', EEG.srate);
+    'fs', srate);
 rawCMconfig.measures = {'COH', 'iCOH'};
 
-cmIndexes = H_compute_CM_commandline(EEG.data, rawCMconfig);
+cmIndexes = H_compute_CM_commandline(EEGdata, rawCMconfig);
 cData = cell2mat(cmIndexes.COH.data);
 icData = cell2mat(cmIndexes.iCOH.data);
 cmIndexDimen = cmIndexes.COH.dimensions(6);
@@ -130,11 +165,11 @@ clear cData icData cmIndexDimen freqBands FrequencyBand f indexBand...
     meas imeas tempVec itempVec
 
 %% Phase Synchronization
-PSwindow = struct('length', length, 'overlap', overlap,...
-    'alignment', 'epoch', 'fs', EEG.srate', 'baseline', 0);
+PSwindow = struct('length', winLength, 'overlap', overlap,...
+    'alignment', 'epoch', 'fs', srate', 'baseline', 0);
 
 rawPSconfig = struct('measures', [], 'bandcenter', [],...
-    'bandwidth', 4, 'fs', EEG.srate, 'method', 'ema', 'time', time,...
+    'bandwidth', 4, 'fs', srate, 'method', 'ema', 'time', time,...
     'window', PSwindow, 'statistics', 0, 'nSurrogates', 100);
 rawPSconfig.measures = {'PLV', 'PLI', 'RHO'};
 
@@ -147,7 +182,7 @@ disp('Running PS processing...');
 for i = 1:bandsNum
     rawPSconfig.bandcenter = bandcenterM(i);
     rawPSconfig.bandwidth = bandwidthM(i);
-    psIndexes = H_compute_PS_commandline(EEG.data, rawPSconfig);
+    psIndexes = H_compute_PS_commandline(EEGdata, rawPSconfig);
     bandsProcessed = cell2mat(psIndexes.PLV.dimensions(6));
     disp(['Finished for ', mat2str(bandsProcessed)]);
     fBands.(cell2mat(fBandsCell(i))).PLI.Data = psIndexes.PLI.data;
@@ -163,7 +198,7 @@ clear psIndexes PSwindow rawPSconfig bandcenterM bandwidthM...
 features = zeros(6,150);
 
 disp('Running BC measures processing...');
-h = 1;
+h = 0;
 for i = 1:bandsNum
     for j = 1:measuresNum
         currentDat = cell2mat(fBands.(cell2mat(fBandsCell(i)))...
@@ -181,17 +216,26 @@ for i = 1:bandsNum
         for k = 2:bcMeasuresNum+1
             fBands.(cell2mat(fBandsCell(i))).(cell2mat(measuresCell(j)))...
                 .(cell2mat(bcMeasuresCell(k))) = ...
-                mat2cell(currentBCM(k-1,:), 1, timeLength);            
+                mat2cell(currentBCM(k-1,:), 1, timeLength);
+            staMeaTemp = [mean(currentBCM(k-1,:), 2);...
+                median(currentBCM(k-1,:), 2);...
+                std(currentBCM(k-1,:), 0, 2);...
+                iqr(currentBCM(k-1,:), 2);...
+                skewness(currentBCM(k-1,:), 1, 2);...
+                kurtosis(currentBCM(k-1,:),1,2)];
+            features(:,k-1+h) = staMeaTemp;
+            for ll = 1:staMeasuresNum
+                fFeatures.(cell2mat(fBandsCell(i)))...
+                .(cell2mat(measuresCell(j)))...
+                .(cell2mat(bcMeasuresCell(k)))...
+                .(cell2mat(staMeasuresCell(ll))) = staMeaTemp(ll);
+            end
         end
-        features(:, h:h+5) = [mean(currentBCM, 2)';...
-            median(currentBCM, 2)';...
-            std(currentBCM, 0, 2)';...
-            iqr(currentBCM, 2)';...
-            skewness(currentBCM, 1, 2)';...
-            kurtosis(currentBCM,1,2)'];
         h = h + 6;
     end
 end
+
+features = reshape(features, [1 900]);
 
 disp('Processing finished successfully');
 
