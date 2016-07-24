@@ -1,4 +1,4 @@
-function [ features, fFeatures ] = eeg_hie_feaX( data_path )
+function [ features, featuresIndex ] = eeg_hie_feaX( data_path )
 %EEG_HIE_FEAX Extract features from EEG data.
 
 EEG = pop_biosig(data_path);
@@ -65,30 +65,30 @@ bcMeasuresCell = {'Data', 'Modul', 'Trans', 'CharPath', 'Effi',...
     'NetRad', 'NetDia'};
 bcMeasuresDataCell = {[]; []; []; []; []; []; []};
 bcMeasures = cell2struct(bcMeasuresDataCell, bcMeasuresCell, 1);
-stabcMeasures = cell2struct(bcMeasuresDataCell(2:end), bcMeasuresCell(2:end), 1);
+% stabcMeasures = cell2struct(bcMeasuresDataCell(2:end), bcMeasuresCell(2:end), 1);
 bcMeasuresNum = size(bcMeasuresCell,2) - 1;
 
 staMeasuresCell = {'Mean', 'Median', 'StD', 'IQR',...
     'Skew', 'Kurt'};
-staMeasuresDataCell = {[]; []; []; []; []; []};
-staMeasures = cell2struct(staMeasuresDataCell, staMeasuresCell, 1);
+% staMeasuresDataCell = {[]; []; []; []; []; []};
+% staMeasures = cell2struct(staMeasuresDataCell, staMeasuresCell, 1);
 staMeasuresNum = size(staMeasuresCell,2);
 
 fBandsCell = {'delta', 'theta', 'alpha', 'beta', 'gamma'};
 bandsNum = size(fBandsCell,2);
 for i = 1:bandsNum
     fBands.(cell2mat(fBandsCell(i))) = measures;
-    fFeatures.(cell2mat(fBandsCell(i))) = measures;
+%     fFeatures.(cell2mat(fBandsCell(i))) = measures;
     for j = 1:measuresNum
         fBands.(cell2mat(fBandsCell(i))).(cell2mat(measuresCell(j))) = ...
             bcMeasures;
-        fFeatures.(cell2mat(fBandsCell(i))).(cell2mat(measuresCell(j)))...
-            = stabcMeasures;
-        for k = 2:bcMeasuresNum+1
-            fFeatures.(cell2mat(fBandsCell(i)))...
-                .(cell2mat(measuresCell(j)))...
-                .(cell2mat(bcMeasuresCell(k))) = staMeasures;
-        end
+%         fFeatures.(cell2mat(fBandsCell(i))).(cell2mat(measuresCell(j)))...
+%             = stabcMeasures;
+%         for k = 2:bcMeasuresNum+1
+%             fFeatures.(cell2mat(fBandsCell(i)))...
+%                 .(cell2mat(measuresCell(j)))...
+%                 .(cell2mat(bcMeasuresCell(k))) = staMeasures;
+%         end
     end
         
 end
@@ -196,6 +196,7 @@ clear psIndexes PSwindow rawPSconfig bandcenterM bandwidthM...
 %% Brain Connectivity Measures and Features Vector Creation
 
 features = zeros(6,150);
+featuresIndex = cell(6,150);
 
 disp('Running BC measures processing...');
 h = 0;
@@ -225,10 +226,16 @@ for i = 1:bandsNum
                 kurtosis(currentBCM(k-1,:),1,2)];
             features(:,k-1+h) = staMeaTemp;
             for ll = 1:staMeasuresNum
-                fFeatures.(cell2mat(fBandsCell(i)))...
-                .(cell2mat(measuresCell(j)))...
-                .(cell2mat(bcMeasuresCell(k)))...
-                .(cell2mat(staMeasuresCell(ll))) = staMeaTemp(ll);
+%                 fFeatures.(cell2mat(fBandsCell(i)))...
+%                 .(cell2mat(measuresCell(j)))...
+%                 .(cell2mat(bcMeasuresCell(k)))...
+%                 .(cell2mat(staMeasuresCell(ll))) = staMeaTemp(ll);
+                fIndexStr = strjoin({cell2mat(fBandsCell(i)),...
+                    cell2mat(measuresCell(j)),...
+                    cell2mat(bcMeasuresCell(k)),...
+                    cell2mat(staMeasuresCell(ll))});
+                featuresIndex(ll,k-1+h) = mat2cell(fIndexStr,...
+                    size(fIndexStr, 1), size(fIndexStr, 2));
             end
         end
         h = h + 6;
@@ -236,6 +243,7 @@ for i = 1:bandsNum
 end
 
 features = reshape(features, [1 900]);
+featuresIndex = reshape(featuresIndex, [1 900]);
 
 disp('Processing finished successfully');
 
