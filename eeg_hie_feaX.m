@@ -1,4 +1,4 @@
-function [ features, featuresIndex ] = eeg_hie_feaX( data_path )
+function [ features, featuresIndex, EPOCHSINDIS ] = eeg_hie_feaX( data_path )
 %EEG_HIE_FEAX Extract features from EEG data.
 
 EEG = pop_biosig(data_path);
@@ -36,14 +36,21 @@ EEG = pop_rmbase(EEG, [-1000 0]);   % Check what Baseline removing is
 
 %% Thresholding
 chanNum = EEG.nbchan;
-pnts = EEG.pnts;
 thuV = 100;
 EEG = pop_eegthresh(EEG, 1, 1:chanNum, -1*thuV, thuV, -1, 1.998, 0, 1);
 
 %% ICA
 EEGdata = reshape(EEG.data(1:chanNum,:,:), chanNum, EEG.pnts*EEG.trials);
 EEGdata = double(EEGdata);
-EEGica = fastica(EEGdata, 'stabilization', 'on');
+
+FAST = 0;
+if (FAST == 1)
+    EEGica = fastica(EEGdata, 'stabilization', 'on');
+else
+    [wica, ~] = runica(EEGdata);
+    EEGica = wica \ EEGdata;
+end
+    
 
 %% Epoching II
 srate = EEG.srate;
@@ -54,6 +61,19 @@ alllatencies = [ tmpevent(:).latency ];
 EEGdata = epoch(EEGica, alllatencies, [lim(1) lim(2)]*srate,...
     'valuelim', valuelim, 'allevents', alllatencies);
 
+EEG.data = EEGdata;
+EEG = pop_rmbase(EEG, [-1000 0]);   % Check what Baseline removing is 
+                                    % for, and proper Value!!!!
+
+%% Thresholding
+chanNum = EEG.nbchan;
+pnts = EEG.pnts;
+thuV = 100;
+EEG = pop_eegthresh(EEG, 1, 1:chanNum, -1*thuV, thuV, -1, 1.998, 0, 1);
+
+EEGdata = EEG.data;
+
+EPOCHSINDIS = size(EEGdata,3);
 
 %% Preparing structures
 measuresCell = {'COH', 'iCOH', 'PLV', 'PLI', 'RHO'};
