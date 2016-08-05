@@ -32,8 +32,8 @@ else
     for i = 1:size(subjects,2)
         sub = cell2mat(subjects(i));
         dotlessSub = ['sub' regexprep(sub, {'\.'},{''})];
-        [features.(dotlessSub).data, features.(dotlessSub).index, epochs(i)] =...
-            eeg_hie_feaX(...
+        [features.(dotlessSub).data, features.(dotlessSub).index,...
+            epochs(i)] = eeg_hie_feaX(...
             ['H:\repos\eeg_hie_soton\RAWEEGDATA\' sub ' 1min']);
     end
     display('All subjects were successfully analysed.');
@@ -81,6 +81,8 @@ X2t = X2(topFEA,:);
 Xt = [X1t';X2t'];
 Y=[1*ones(1,4) 2*ones(1,3)];
 
+T1 = zeros(7, 4);
+T2 = zeros(7, 3);
 figure(1);
 for i = 1:size(Xt,2)
     Xi = Xt(:,i);
@@ -89,30 +91,105 @@ for i = 1:size(Xt,2)
     L = MdlLinear.Coeffs(1,2).Linear;
     t1=L'*Xi(Y==1,:)';
     t2=L'*Xi(Y==2,:)';
+    T1(i,:) = t1;
+    T2(i,:) = t2;
 
     figure(1), subplot(2,4,i), h1 = histfit(t1);
     figure(1), hold on
     figure(1), subplot(2,4,i), h2 = histfit(t2);
     h1(1).FaceColor = [1 .8 .8];
+%     h1(1).Parent.XLim = [-80 150];
     h2(1).FaceColor = [.8 .8 1];
     h2(2).Color = [0 0 1];
 end
 
-corrplot(Xt);
+% corrplot(Xt);
 
 % Xt(:,2) = [];
 % Xt(:,6-1) = [];
-Xt(:,6:7) = [];
+Xt(:,6:7) = []; %% HARD CODED!!!!
+classList = {'linear', 'diaglinear', 'quadratic', 'diagQuadratic'};
 
-MdlLinear = fitcdiscr(Xt,Y');
+cNum = size(classList,2);
+nFeatures = size(Xt,2);
 
-L = MdlLinear.Coeffs(1,2).Linear;
-t1=L'*Xt(Y==1,:)';
-t2=L'*Xt(Y==2,:)';
+Acc = zeros(cNum,nFeatures);
+GammaArr = zeros(cNum,nFeatures);
+Se = zeros(cNum,nFeatures);
+Sp = zeros(cNum,nFeatures);
+PPV = zeros(cNum,nFeatures);
+NPV = zeros(cNum,nFeatures);
+AUC = zeros(cNum,nFeatures);
 
-figure(3), h1 = histfit(t1);
-figure(3), hold on
-figure(3), h2 = histfit(t2);
-h1(1).FaceColor = [1 .8 .8];
-h2(1).FaceColor = [.8 .8 1];
-h2(2).Color = [0 0 1];
+%% Classification
+distClass = 0;
+for c = 1:cNum
+    for i = 1:nFeatures
+        if (distClass)
+            try
+                MdlLinear = fitcdiscr(Xt(:,1:i), Y','DiscrimType',classList{c});
+            catch FDERROR
+                fprintf('Failed to fit classifier: %s\n', FDERROR.message);
+                continue;
+            end
+
+            GammaArr(c,i) = MdlLinear.Gamma;
+            resuberror = resubLoss(MdlLinear)
+            cvmodel = crossval(MdlLinear,'leaveout','on');
+            cvpred = kfoldPredict(cvmodel);
+
+            ConfMat = confusionmat(cvmodel.Y,cvpred);
+        else
+            groupsLabel = Y';
+            groupsLabelLen = length(groupsLabel);
+            classMat = zeros(size(groupsLabel));
+%             indices = crossvalind('Kfold',groupsLabel,groupsLabelLen);
+            cp = classperf(Y');
+            for ii = 1:100
+%                 test = (indices == ii); train = ~test;
+                [train, test] = crossvalind('LeaveMOut', 7, 1);
+                class = classify(Xt(test,1:i),Xt(train,1:i),...
+                    groupsLabel(train,1:i), classList{c}, 'empirical');
+                classperf(cp,class,test);
+            end
+            cp.ErrorRate
+            
+%             Xttemp = Xt(:,1:i);
+%             Xtcrossed = zeros(N);
+%             classMat = zeros(size(Y'));
+%             ij = 0;
+%             for ii = N:-1:1
+%                 Xtcrossed = circshift(Xttemp, ii);
+%                 Ycrossed = circshift(Y', ii);
+%                 try
+%                     ij = ij + 1;
+%                     classMat(ij,1) = classify(Xtcrossed(1,:),...
+%                         Xtcrossed(2:7,:), Ycrossed(2:7), classList{c},...
+%                         'empirical');
+%                 catch FDERROR
+%                     fprintf('Failed to classify: %s\n', FDERROR.message);
+%                     continue;
+%                 end
+%             end
+%             ConfMat = confusionmat(Y',classMat);
+        end
+        
+        CCell = num2cell(ConfMat);
+        [TP, FN, FP, TN] = CCell{:};
+
+        Acc(c,i) = (TP + TN) / (TP + FP + TN + FN);
+        Se(c,i) = TP / (TP + FN);
+        Sp(c,i) = TN / (FP + TN);
+        PPV(c,i) = TP / (TP + FP);
+        NPV(c,i) = TN / (TN + FN);
+        AUC(c,i) = (Se(c,i) + Sp(c,i)) / 2;
+    end
+end
+
+perfMea = cat(3,Acc,Se,Sp,PPV,NPV,AUC);
+
+%% Projection
+% L = MdlLinear.Coeffs(1,2).Linear;
+% t1=L'*Xt(Y==1,:)';
+% t2=L'*Xt(Y==2,:)';
+
