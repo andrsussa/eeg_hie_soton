@@ -6,25 +6,6 @@ subjects = {'2.1.1', '2.4.2', '2.5.1', '2.5.2', '2.2.1', '2.2.2', '2.3.2'};
 N = size(subjects,2);
 m = 900;
 
-% for i = 1:size(subjects,2) 
-%     sub = cell2mat(subjects(i));
-%     dotlessSub = ['sub' regexprep(sub, {'\.'},{''})];
-%     EEG = pop_biosig(['H:\repos\eeg_hie_soton\RAWEEGDATA\' sub ' 1min']);
-%     if ispc
-% %     EEG = pop_biosig('H:\repos\eeg_hie_soton\2.1.1min');
-%         EEG=pop_chanedit(EEG, 'lookup',['H:\\thesis\\eeglab13_5_4b\\plugins'...
-%             '\\dipfit2.3\\standard_BESA\\standard-10-5-cap385.elp']);
-%     else
-% %     EEG = pop_biosig('/home/andres/repos/eeg_hie_soton/2.1.1min');
-%         EEG = pop_chanedit(EEG, 'lookup',['/home/andres/MATLAB/'...
-%             'eeglab13_5_4b/plugins/dipfit2.3/standard_BESA/'...
-%             'standard-10-5-cap385.elp']);
-%     end
-%     EEG = pop_select(EEG, 'nochannel', {'FPZ' 'AUX1' 'AUX2' 'AUX3' 'AUX4',...
-%         'AUX5' 'AUX6' 'AUX7' 'AUX8' 'PG1' 'PG2' 'A1' 'A2'});
-%     eegplot(EEG.data, 'title', sub);
-% end
-
 epochs = zeros(1, size(subjects,2));
 if exist('features.mat', 'file')
     load features.mat
@@ -83,7 +64,8 @@ Y=[1*ones(1,4) 2*ones(1,3)];
 
 T1 = zeros(7, 4);
 T2 = zeros(7, 3);
-figure(1);
+figNum = 1;
+figure(figNum);
 for i = 1:size(Xt,2)
     Xi = Xt(:,i);
     MdlLinear = fitcdiscr(Xi,Y');
@@ -94,32 +76,32 @@ for i = 1:size(Xt,2)
     T1(i,:) = t1;
     T2(i,:) = t2;
 
-    figure(1), subplot(2,4,i), h1 = histfit(t1);
-    figure(1), hold on
-    figure(1), subplot(2,4,i), h2 = histfit(t2);
+    figure(figNum), subplot(2,4,i), h1 = histfit(t1);
+    figure(figNum), hold on
+    figure(figNum), subplot(2,4,i), h2 = histfit(t2);
     h1(1).FaceColor = [1 .8 .8];
 %     h1(1).Parent.XLim = [-80 150];
     h2(1).FaceColor = [.8 .8 1];
     h2(2).Color = [0 0 1];
 end
 
-% corrplot(Xt);
+figNum = figNum + 1;
+corrplot(Xt);
 
-% Xt(:,2) = [];
-% Xt(:,6-1) = [];
 Xt(:,6:7) = []; %% HARD CODED!!!!
-classList = {'linear', 'diaglinear', 'quadratic', 'diagQuadratic'};
+classList = {'linear', 'diaglinear', 'quadratic',...
+    'diagQuadratic', 'mahalanobis'};
 
 cNum = size(classList,2);
 nFeatures = size(Xt,2);
 
-Acc = zeros(cNum,nFeatures);
-GammaArr = zeros(cNum,nFeatures);
-Se = zeros(cNum,nFeatures);
-Sp = zeros(cNum,nFeatures);
-PPV = zeros(cNum,nFeatures);
-NPV = zeros(cNum,nFeatures);
-AUC = zeros(cNum,nFeatures);
+Acc = NaN(cNum,nFeatures);
+GammaArr = NaN(cNum,nFeatures);
+Se = NaN(cNum,nFeatures);
+Sp = NaN(cNum,nFeatures);
+PPV = NaN(cNum,nFeatures);
+NPV = NaN(cNum,nFeatures);
+AUC = NaN(cNum,nFeatures);
 
 %% Classification
 distClass = 0;
@@ -127,51 +109,36 @@ for c = 1:cNum
     for i = 1:nFeatures
         if (distClass)
             try
-                MdlLinear = fitcdiscr(Xt(:,1:i), Y','DiscrimType',classList{c});
+                MdlLinear = fitcdiscr(Xt(:,1:i), Y',...
+                    'DiscrimType',classList{c});
             catch FDERROR
                 fprintf('Failed to fit classifier: %s\n', FDERROR.message);
                 continue;
             end
 
             GammaArr(c,i) = MdlLinear.Gamma;
-            resuberror = resubLoss(MdlLinear)
+            resuberror = resubLoss(MdlLinear);
             cvmodel = crossval(MdlLinear,'leaveout','on');
             cvpred = kfoldPredict(cvmodel);
 
             ConfMat = confusionmat(cvmodel.Y,cvpred);
         else
-            groupsLabel = Y';
-            groupsLabelLen = length(groupsLabel);
-            classMat = zeros(size(groupsLabel));
-%             indices = crossvalind('Kfold',groupsLabel,groupsLabelLen);
-            cp = classperf(Y');
-            for ii = 1:100
-%                 test = (indices == ii); train = ~test;
-                [train, test] = crossvalind('LeaveMOut', 7, 1);
-                class = classify(Xt(test,1:i),Xt(train,1:i),...
-                    groupsLabel(train,1:i), classList{c}, 'empirical');
-                classperf(cp,class,test);
-            end
-            cp.ErrorRate
+            cp = cvpartition(Y','LeaveOut');
+            order = [1;2];
             
-%             Xttemp = Xt(:,1:i);
-%             Xtcrossed = zeros(N);
-%             classMat = zeros(size(Y'));
-%             ij = 0;
-%             for ii = N:-1:1
-%                 Xtcrossed = circshift(Xttemp, ii);
-%                 Ycrossed = circshift(Y', ii);
-%                 try
-%                     ij = ij + 1;
-%                     classMat(ij,1) = classify(Xtcrossed(1,:),...
-%                         Xtcrossed(2:7,:), Ycrossed(2:7), classList{c},...
-%                         'empirical');
-%                 catch FDERROR
-%                     fprintf('Failed to classify: %s\n', FDERROR.message);
-%                     continue;
-%                 end
-%             end
-%             ConfMat = confusionmat(Y',classMat);
+            f = @(xtr,ytr,xte,yte)confusionmat(yte,...
+                classify(xte,xtr,ytr,classList{c},...
+                         'empirical'),'order',order);
+            
+            try
+                ConfMat = crossval(f, Xt(:,1:i), Y', 'partition', cp);
+            catch FDERROR
+                fprintf('Failed to fit classifier: %s\n', FDERROR.message);
+                fprintf('Error for %s classifier for %i features.\n',...
+                    classList{c}, i);
+                continue;
+            end
+            ConfMat = reshape(sum(ConfMat),2,2);
         end
         
         CCell = num2cell(ConfMat);
@@ -188,8 +155,29 @@ end
 
 perfMea = cat(3,Acc,Se,Sp,PPV,NPV,AUC);
 
-%% Projection
-% L = MdlLinear.Coeffs(1,2).Linear;
-% t1=L'*Xt(Y==1,:)';
-% t2=L'*Xt(Y==2,:)';
+figNum = figNum + 1;
+pMarkers = {'h', 'o', '*', 'd', 'x'};
+pTitles = {'Accuracy', 'Sensitivity', 'Specificity', 'PPV', 'NPV',...
+    'AUC'};
+pLineWidth = [1.2, 0.8, 1, 1, 1.2];
+pMarkerSize = [6, 8, 8, 6, 8];
+for ip = 1:size(perfMea,3)
+    for i = 1:size(perfMea,2)
+        figure(figNum), subplot(2,3,ip), p = plot(1:5,perfMea(i,:,ip));
+        xlim([0 7])
+        ylim([0 1.05])
+        xlabel('Ranked Features')
+        title(pTitles{ip})
+        p.LineWidth = pLineWidth(i);
+        p.Marker = pMarkers{i};
+        p.MarkerSize = pMarkerSize(i);
+        figure(figNum), hold on
+    end
+end
 
+pLegend = {'LDA', 'Diaglinear', 'QDA', 'Diagquadratic', 'Mahalanobis'};
+figure(figNum);
+pl = legend(pLegend,'Location','southoutside',...
+    'Orientation','horizontal','FontSize',12);
+rect = [0.45, 0.01, .15, .05];
+set(pl, 'Position', rect)
