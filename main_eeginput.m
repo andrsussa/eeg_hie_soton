@@ -1,11 +1,15 @@
 clear all
 close all
 
-subjects = {'2.1.1', '2.4.2', '2.5.1', '2.5.2', '2.2.1', '2.2.2', '2.3.2'};
+subjects = {'2.1.1', '2.4.2', '2.5.1', '2.5.2', '2.6',...
+    '2.2.1', '2.2.2', '2.3.2'};
 
 N = size(subjects,2);
+hS = 5;
+dS = N - 5;
 m = 900;
 
+%% Feature Extraction
 epochs = zeros(1, size(subjects,2));
 if exist('features.mat', 'file')
     load features.mat
@@ -29,8 +33,10 @@ for i = 1:N
     X(:,i) = features.(dotlessSub).data;
 end
 
-N1 = 1:4;
-N2 = 5:7;
+%% Feature Ranking
+
+N1 = 1:hS;
+N2 = hS+1:N;
 X1 = zscore(X(:,N1), [], 1);
 X2 = zscore(X(:,N2), [], 1);
 
@@ -40,7 +46,8 @@ FDR = ((mean(X1,2) - mean(X2,2)).^2) ./...
 indexFeatures = features.sub211.index';
 [~, inFDRALL] = sort(FDR,'descend');
 
-topFEA = inFDRALL(1:7);
+% Dimension reduction and Statistical Significance
+topFEA = inFDRALL(1:N);
 [hE5, pE] = ttest2(X1, X2, 'Vartype', 'equal', 'Dim', 2);
 [hE1, ~] = ttest2(X1, X2, 'Vartype', 'equal', 'Dim', 2, 'Alpha', 0.01);
 [hU5, pU] = ttest2(X1, X2, 'Vartype', 'unequal', 'Dim', 2);
@@ -60,10 +67,11 @@ sortedFeatures = table(indexFeatures(topFEA), FDR(topFEA), pE(topFEA),...
 X1t = X1(topFEA,:);
 X2t = X2(topFEA,:);
 Xt = [X1t';X2t'];
-Y=[1*ones(1,4) 2*ones(1,3)];
+Y=[1*ones(1,hS) 2*ones(1,dS)];
 
-T1 = zeros(7, 4);
-T2 = zeros(7, 3);
+%% Separability Plot
+T1 = zeros(8, hS);
+T2 = zeros(8, dS);
 figNum = 1;
 figure(figNum);
 for i = 1:size(Xt,2)
@@ -80,15 +88,27 @@ for i = 1:size(Xt,2)
     figure(figNum), hold on
     figure(figNum), subplot(2,4,i), h2 = histfit(t2);
     h1(1).FaceColor = [1 .8 .8];
-%     h1(1).Parent.XLim = [-80 150];
+    h1(1).Parent.XLim = [-80 150];
     h2(1).FaceColor = [.8 .8 1];
     h2(2).Color = [0 0 1];
 end
 
+%% Correlation Analysis
 figNum = figNum + 1;
-corrplot(Xt);
+R = corrplot(Xt);
+Ra = abs(tril(R,-1));
 
-Xt(:,6:7) = []; %% HARD CODED!!!!
+% Removing of features with high correlation
+[Rafx, Rafy] = find(Ra > .9);
+feaSel = 1:N;
+for i = 1:size(Rafx)
+    nn = max([Rafx(i) Rafy(i)]);
+    feaSel(feaSel == nn) = [];
+end
+Xt = Xt(:,feaSel);
+    
+
+%% Classification
 classList = {'linear', 'diaglinear', 'quadratic',...
     'diagQuadratic', 'mahalanobis'};
 
@@ -103,7 +123,6 @@ PPV = NaN(cNum,nFeatures);
 NPV = NaN(cNum,nFeatures);
 AUC = NaN(cNum,nFeatures);
 
-%% Classification
 distClass = 0;
 for c = 1:cNum
     for i = 1:nFeatures
@@ -155,29 +174,33 @@ end
 
 perfMea = cat(3,Acc,Se,Sp,PPV,NPV,AUC);
 
-figNum = figNum + 1;
-pMarkers = {'h', 'o', '*', 'd', 'x'};
-pTitles = {'Accuracy', 'Sensitivity', 'Specificity', 'PPV', 'NPV',...
-    'AUC'};
-pLineWidth = [1.2, 0.8, 1, 1, 1.2];
-pMarkerSize = [6, 8, 8, 6, 8];
-for ip = 1:size(perfMea,3)
-    for i = 1:size(perfMea,2)
-        figure(figNum), subplot(2,3,ip), p = plot(1:5,perfMea(i,:,ip));
-        xlim([0 7])
-        ylim([0 1.05])
-        xlabel('Ranked Features')
-        title(pTitles{ip})
-        p.LineWidth = pLineWidth(i);
-        p.Marker = pMarkers{i};
-        p.MarkerSize = pMarkerSize(i);
-        figure(figNum), hold on
+%% PERFORMANCE PLOT FOR 6 FEATURES OR LESS ONLY!!!!!
+if (nFeatures <= 6)
+    figNum = figNum + 1;
+    pMarkers = {'h', 'o', '*', 'd', 'x', 's'};
+    pTitles = {'Accuracy', 'Sensitivity', 'Specificity', 'PPV', 'NPV',...
+        'AUC'};
+    pLineWidth = [1.2, 0.8, 1, 1, 1.2, 1];
+    pMarkerSize = [6, 8, 8, 6, 8, 8];
+    for ip = 1:size(perfMea,3)
+        for i = 1:size(perfMea,1)
+            figure(figNum), subplot(2,3,ip), p =...
+                plot(1:nFeatures,perfMea(i,:,ip));
+            xlim([0 7])
+            ylim([0 1.05])
+            xlabel('Ranked Features')
+            title(pTitles{ip})
+            p.LineWidth = pLineWidth(i);
+            p.Marker = pMarkers{i};
+            p.MarkerSize = pMarkerSize(i);
+            figure(figNum), hold on
+        end
     end
-end
 
-pLegend = {'LDA', 'Diaglinear', 'QDA', 'Diagquadratic', 'Mahalanobis'};
-figure(figNum);
-pl = legend(pLegend,'Location','southoutside',...
-    'Orientation','horizontal','FontSize',12);
-rect = [0.45, 0.01, .15, .05];
-set(pl, 'Position', rect)
+    pLegend = {'LDA', 'Diaglinear', 'QDA', 'Diagquadratic', 'Mahalanobis'};
+    figure(figNum);
+    pl = legend(pLegend,'Location','southoutside',...
+        'Orientation','horizontal','FontSize',12);
+    rect = [0.45, 0.01, .15, .05];
+    set(pl, 'Position', rect)
+end
