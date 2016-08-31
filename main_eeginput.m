@@ -1,6 +1,16 @@
 clear all
 close all
 
+if ispc
+    slashorback = '\';
+else
+    slashorback = '/';
+end
+
+if (isempty(strfind(path,['eeg_hie_soton' slashorback 'lib' slashorback])))
+    addpath(genpath([pwd slashorback 'lib' slashorback]));
+end
+
 subjects = {'2.1.1', '2.4.2', '2.5.1', '2.5.2', '2.6',...
     '2.2.1', '2.2.2', '2.3.2'};
 
