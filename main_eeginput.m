@@ -98,7 +98,7 @@ for i = 1:size(Xt,2)
     figure(figNum), hold on
     figure(figNum), subplot(2,4,i), h2 = histfit(t2);
     h1(1).FaceColor = [1 .8 .8];
-    h1(1).Parent.XLim = [-80 150];
+%     h1(1).Parent.XLim = [-60 80];
     h2(1).FaceColor = [.8 .8 1];
     h2(2).Color = [0 0 1];
 end
