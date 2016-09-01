@@ -44,7 +44,7 @@ FAST = 0;
 if (FAST == 1)
     EEGica = fastica(EEGdata, 'stabilization', 'on');
 else
-    [wica, ~] = runica(EEGdata);
+    [wica, ~] = runica(EEGdata, 'extended', 1);
     EEGica = wica \ EEGdata;
 end
     
